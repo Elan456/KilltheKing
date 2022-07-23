@@ -1,14 +1,8 @@
-import pygame
 from player import Player
 from guard import Guard
-from person import Person
-from egene import pygameTools as pgt
 from quadtree import *
-from img_to_map import Map, Node, Connection
 import pickle
-import pathing
 from pathing import astar
-import time
 
 map_name = "Big"
 
