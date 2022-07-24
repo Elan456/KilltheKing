@@ -1,9 +1,11 @@
-import img_to_map
+from multiprocessing import Queue
+
 from quadtree import Point
 from egene import pygameTools as pgt
 import pygame
 import time
 import bisect
+import copy
 
 
 def point_to_nearest_node(point, map):  # Finds the navigation node closest to a point without going through walls
@@ -53,7 +55,7 @@ class Path:
 
 
 # Uses A* to find the shortest path between two points
-def astar(start: Point, end: Point, map: img_to_map.Map, surface=None):
+def astar(start: Point, end: Point, map):
     if not map.line_blocked(start, end):
         print("CAN SEE")
         return SimplePath([start, end])
@@ -64,6 +66,7 @@ def astar(start: Point, end: Point, map: img_to_map.Map, surface=None):
 
     # print("priortiy:", priority)
     while True:
+        print("tick")
         # print("length", len(priority))
         # print(priority[0].nodes[-1].x, priority[0].nodes[-1].y)
         # print(priority[0].potential_paths)
@@ -72,7 +75,7 @@ def astar(start: Point, end: Point, map: img_to_map.Map, surface=None):
 
 
         # time.sleep(1)
-        timeout = time.time() - start_time > 1
+        timeout = time.time() - start_time > 10
         if check.nodes[-1] == end_node or timeout:  # Found the end
             # Find furthest one the start point can still see
             si = 0
@@ -97,17 +100,40 @@ def astar(start: Point, end: Point, map: img_to_map.Map, surface=None):
             # return check
             if (si == 0 and ei == 0):# or (si == len(check.nodes) - 1):
                 #print("SIMPLE")
+                print("DONE")
                 return SimplePath([start, end])
+
+
             final = SimplePath([start] + check.nodes[si:max(si, ei) + 1])  # Makes first and last node approximates the actual points
             if not timeout:
                 final.points += [end]
+            print("DONE")
             return final
+
+
         else:
             priority.pop(0)  # If it is completly expanded then the parent is no longer needed
             check.expand()
             for p in check.potential_paths:
                 bisect.insort(priority, p)
             # print([p.score for p in priority])
+
+
+def astar_friend(talk):  # To avoid spawning processes many times, takes pathing requests and hands paths them back
+
+    while True:
+        print("IN MY TRUE LOOP")
+        print("about to copy talk")
+        print("talk:", talk)
+        request = copy.copy(talk["request"])
+        print("USED REQUEST SUCCESFULLY")
+
+        if request != None:
+            print("REQUEST RECIEVED")
+            talk["path"] = astar(request[0], request[1], request[2])
+            talk["request"] = None
+            print("REQUEST CLEARED PATH UPDATED")
+
 
 
 

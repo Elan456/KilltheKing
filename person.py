@@ -16,7 +16,7 @@ class Person:
 
     def check_collision(self):  # Checks if the person is colliding with a wall and returns which direction to move them
 
-        self.touching_walls = self.qt.query(Rectangle(self.x - 10 - 25, self.y - 10 - 25, 45, 45))
+        self.touching_walls = self.qt.query(Rectangle(self.x - 8 - 25, self.y - 8 - 25, 41, 41))
         # self.touching_walls.sort(key=lambda p: pgt.cdistance(p.x + 25/2, p.y + 25/2, self.x, self.y))
         if len(self.touching_walls) > 0:
             tw = self.touching_walls[0]
@@ -38,7 +38,7 @@ class Person:
         self.check_collision()
 
     def draw(self, surface):
-        pygame.draw.circle(surface, self.color, (self.x, self.y), 10)
+        pygame.draw.circle(surface, self.color, (self.x, self.y), 8)
         # if len(self.touching_walls) > 0:
         #     p = self.touching_walls[0]
         #     # print("drawing walls")
