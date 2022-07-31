@@ -2,7 +2,7 @@ from player import Player
 from guard import Guard
 from quadtree import *
 import pickle
-from pathing import astar
+from pathing import find_path, SimplePath
 from img_to_map import Map, Node, Point, Connection
 
 
@@ -13,7 +13,7 @@ class Camera:
         self.surface = surface
 
 if __name__ == "__main__":
-    map_name = "Big"
+    map_name = "big"
 
     d_width = 1000
     d_height = 1000
@@ -21,7 +21,6 @@ if __name__ == "__main__":
 
     basic_map = pygame.image.load("assets\\" + map_name + ".png").convert()
     basic_map = pygame.transform.scale(basic_map, (basic_map.get_width() * 25, basic_map.get_height() * 25))
-    print(basic_map.get_width(), "width")
 
     white = (255, 255, 255)
     black = (0, 0, 0)
@@ -35,7 +34,7 @@ if __name__ == "__main__":
 
     qt = amap.quadtree
     guy = Player(300, 300, qt)
-    guard = Guard(80, 80, amap, (0, 0, 100), 2)
+    guard = Guard(80, 80, amap, (0, 0, 100), 4)
     # print("wall count:", len(amap.walls))
 
     found_points = qt.query(Rectangle(10, 30, 200, 200))
@@ -46,7 +45,7 @@ if __name__ == "__main__":
     T = Point(100, 100)
     setting = "F"
     can_click = True
-    path = astar(F, T, amap)
+    path = SimplePath([])
     # path = astar(Point(2375, 2395), Point(532, 2296), amap, gameDisplay)
     camera = Camera(0, 0, gameDisplay)
     t = -1
@@ -68,7 +67,7 @@ if __name__ == "__main__":
                 setting = "T"
             else:
                 T.x, T.y = mouse_p
-                path = astar(F, T, amap)
+                path = find_path(F, T, amap)
                 setting = "F"
 
             can_click = False
@@ -78,16 +77,20 @@ if __name__ == "__main__":
             if event.type == pygame.QUIT:
                 pygame.quit()
                 quit()
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_SPACE:
+                    guard.gotoo(Point(guy.x, guy.y))
         # print(camera.x, camera.y)
         gameDisplay.blit(basic_map, (0, 0))
-        if t % 360 == 0:
-            guard.gotoo(Point(guy.x, guy.y))
+        amap.draw_nodes(gameDisplay)
 
         # qt.show(gameDisplay)
         guy.move(keystates)
         guy.pos_update()
         guard.update()
         guard.draw(gameDisplay)
+
+        guard.draw_path(gameDisplay)
         guy.draw(gameDisplay)
 
         color = (255, 0, 0) if amap.line_blocked(F, T) else (0, 0, 255)
@@ -96,7 +99,7 @@ if __name__ == "__main__":
         for p in [F, T]:
             pygame.draw.circle(gameDisplay, (0, 0, 255), (p.x, p.y), 2)
 
-        amap.draw_nodes(gameDisplay)
+
         if setting == "F":
             path.draw(gameDisplay)
 

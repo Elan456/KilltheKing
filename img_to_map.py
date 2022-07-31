@@ -7,6 +7,10 @@ import math
 from egene import pygameTools as pgt
 import sys
 import pygame
+from pathing import astar, SimplePath
+import tqdm
+import multiprocessing as mp
+import time
 
 sys.setrecursionlimit(10000)
 
@@ -32,7 +36,6 @@ def is_corner(n, node_map):
             if dx != 0 or dy != 0:
                 neis[(dx, dy)] = node_map[int(n.y // 25 + dy)][int(n.x // 25) + dx] == 0
 
-
     if neis[(-1, -1)] and not (neis[(0, -1)] or neis[(-1, 0)]):
         return True
     if neis[(-1, 1)] and not (neis[(0, 1)] or neis[(-1, 0)]):
@@ -54,10 +57,12 @@ def is_corner(n, node_map):
 
 class Map:
     def __init__(self, array):
-        print("INITALIZING MAP")
+        print("INITIALIZING MAP")
         self.walls = set()
         self.nodes = []
         self.node_map = [[0 for c in range(array.shape[1])] for r in range(array.shape[0])]
+        self.node_quadtree = quadtree.QuadTree(quadtree.Rectangle(0, 0, array.shape[1] * 25, array.shape[0] * 25), 4)
+        self.paths = {}
         for y in range(array.shape[0]):
             for x in range(array.shape[1]):
                 if sum(array[y, x]) == 0:
@@ -67,7 +72,7 @@ class Map:
                     self.nodes.append(n)
                     self.node_map[y][x] = n
 
-
+        print("Finding the nodes on convex corners")
         # Finding the nodes that are on a corner
         self.corner_nodes = []
         for n in self.nodes:
@@ -82,11 +87,12 @@ class Map:
             self.node_map[int(n.y / 25)][int(n.x / 25)] = n
 
         # self.nodes = self.corner_nodes
-
+        print("Generating walls quadtree")
         self.quadtree = quadtree.QuadTree(quadtree.Rectangle(0, 0, array.shape[1] * 25, array.shape[0] * 25), 6)
         for wall in self.walls:
             self.quadtree.insert(Point(wall.x, wall.y))
 
+        print("Connecting nodes in view of each other")
         for i in self.nodes:  # Connected nodes together if there is no wall inbetween
             for j in self.nodes:
                 if not self.line_blocked(Point(i.x, i.y), Point(j.x, j.y)):
@@ -94,6 +100,44 @@ class Map:
             # if len(i.connections) > 4:
             #     i.connections.sort(key=lambda x: x.length)
             #     i.connections = i.connections[:4]
+        # Put all the nodes into a quadtree so nearest nodes can be found faster
+        print("Generating node quadtree")
+        for n in self.nodes:
+            self.node_quadtree.insert(n)
+        print("Calculating navigation routes")
+        self.calc_all_paths()  # Precalculates all the paths between and combination of nodes
+        print(self.paths)
+
+    @staticmethod
+    def to_paths(args):
+        i, nodes, map = args
+        d = {}
+        for j in range(i, len(nodes)):
+            path = astar(Point(nodes[i].x, nodes[i].y), Point(nodes[j].x, nodes[j].y), map)
+            # If path times out it equals None so it should not be added to dict
+            if path is not None:
+                d.update({((nodes[i].x, nodes[i].y),
+                         (nodes[j].x, nodes[j].y)): path})
+        return d
+
+    def calc_all_paths(self):
+        pool = mp.Pool()
+
+        for result in tqdm.tqdm(pool.imap_unordered(Map.to_paths, [(i, self.nodes, self) for i in range(len(self.nodes))]), total=len(self.nodes)):
+            self.paths.update(result)
+            # print(self.paths)
+
+    def path_lookup(self, start_node, end_node):
+        try:
+            return self.paths[(start_node.x, start_node.y), (end_node.x, end_node.y)]
+        except KeyError:
+            try:
+                p = self.paths[(end_node.x, end_node.y), (start_node.x, start_node.y)]
+                # This is an opposite path so the order must be reversed
+                return SimplePath(p.nodes[::-1])
+            except KeyError:
+                # print("No valid path found in lookup")
+                return None
 
     def line_blocked(self, start, end):  # Checks if a straight line through this map is not blocked (used for pathing)
         loc = Point(start.x, start.y)
@@ -115,10 +159,11 @@ class Map:
 
 
 def convert(image_name):
-    im = np.asarray(Image.open("assets\\"+image_name).convert("RGB"))
+    im = np.asarray(Image.open("assets\\" + image_name).convert("RGB"))
     return Map(im)
 
 
 if __name__ == "__main__":
     # pickle.dump(convert("Big.png"), open("big.p", "wb"))
-    pickle.dump(convert("Basic.png"), open("basic.p", "wb"))
+    name = "big"
+    pickle.dump(convert(name + ".png"), open(name + ".p", "wb"))

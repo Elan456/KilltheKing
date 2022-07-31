@@ -1,7 +1,8 @@
 from person import Person, Point
-from pathing import astar, astar_friend
+from pathing import find_path
 from egene import pygameTools as pgt
 import math
+import pygame
 from multiprocessing import Process, Manager
 import copy
 
@@ -13,57 +14,47 @@ class Guard(Person):
         self.map = map
         self.state = "waiting"
         self.d = 0
+        self.target_point = None
+        self.path = None
+        self.next_waypoint = None
         super().__init__(x, y, map.quadtree, color, speed)
 
-        # Creating the process incharge of calculating paths for this guard
-        self.manager = Manager()
-        self.talk = self.manager.dict()
-        print("at make process")
-        self.p = Process(target=astar_friend, args=(self.talk,))
-        self.p.start()
-        print("process started")
-        exit()
+
+    def gotoo(self, end: Point):  # Tell the guard to go somewhere
+        self.target_point = Point(end.x, end.y)
+        self.path = find_path(Point(self.x, self.y), self.target_point, self.map)
+        self.state = "pathing"  # means moving along a math
+        self.new_waypoint(initial_setup=True)
 
 
-    def gotoo(self, end: Point):
-        """
-        State will be set to thinking until the path is calculated in a subprocess
-        """
-        print(self.state)
-        if self.state != "thinking" and self.state != "pathing":
-            self.state = "thinking"
+    def new_waypoint(self, initial_setup=False):  # Once a point along the path is reached, go to the next one
+        # Checking if that path is full or not
+        # If the path is not full then try making a new path now that the guard is a bit closer
+        if not initial_setup and self.path.points[-1] != self.target_point:  # Not full path
+            print("Not on a full path trying again")
+            self.gotoo(self.target_point)
 
-            # Add a request to our thinking process
-            print("MADE REQUEST")
-            self.talk["request"] = [Point(self.x, self.y), end, self.map]
-
-
-    def new_waypoint(self):
         if len(self.path.points) > 1:  # Only move on if there is something to move too
-            self.path.points.pop(0)
+            if not initial_setup:
+                self.path.points.pop(0)
             self.next_waypoint = self.path.points[0]
             self.d = math.atan2(self.next_waypoint.y - self.y, self.next_waypoint.x - self.x)
         else:
-            self.state = "waiting"
+            self.state = "waiting"  # finished pathing
 
+    def draw_path(self, surface):
+        if self.path is not None:
+            self.path.draw(surface)
+            pygame.draw.line(surface, (0, 0, 255), (self.x, self.y), (self.path.points[0].x, self.path.points[0].y))
     def update(self):
         if self.state == "pathing":
             if pgt.cdistance(self.x, self.y, self.next_waypoint.x, self.next_waypoint.y) <= self.speed * 1.1:
                 self.new_waypoint()
+
             self.x += math.cos(self.d) * self.speed
             self.y += math.sin(self.d) * self.speed
         elif self.state == "waiting":
             pass  # Do nothing
         else:
             self.check_collision()
-
-        if self.state == "thinking":  # Trying to make a path from one point to another
-            print(self.talk["path"])
-            if self.talk["path"] != None:
-                self.path = copy.copy(self.talk["path"])
-                self.talk["path"] = None  # Clears the path so a new one must be made
-
-                print("\n path recieved \n")
-                self.state = "pathing"  # And start following it
-                self.next_waypoint = self.path.points[0]
 
